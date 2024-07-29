@@ -208,6 +208,7 @@ subscriptions_size_(0)
   merged_map_publisher_ =
       this->create_publisher<nav_msgs::msg::OccupancyGrid>(merged_map_topic, 
       rclcpp::QoS(rclcpp::KeepLast(1)).transient_local().reliable());
+  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
   // Timers
   map_merging_timer_ = this->create_wall_timer(
@@ -412,6 +413,40 @@ void MapMerge::mapMerging()
 
   rcpputils::assert_true(merged_map->info.resolution > 0.f);
   merged_map_publisher_->publish(*merged_map);
+
+  std::vector<geometry_msgs::msg::Transform> result = pipeline_.getTransforms();
+  assert(result.size() == robots_.size()); // Ensure equal sizes
+
+  auto it_transform = result.begin();
+  auto it_robot = robots_.begin();
+
+  while (it_transform != result.end() && it_robot != robots_.end()) {
+    const geometry_msgs::msg::Transform& transform = *it_transform;
+    // const geometry_msgs::msg::TransformStamped& transform = (geometry_msgs::msg::TransformStamped)*it_transform;
+    const std::string& robot_name = it_robot->first;
+
+    // transform.header.stamp = now;
+    // transform.header.frame_id = world_frame_;
+    // transform.child_frame_id = "/"s + robot_name + "/map"s;
+
+    // tf_broadcaster_->sendTransform(transform);
+
+
+    geometry_msgs::msg::TransformStamped t;
+
+    // Read message content and assign it to
+    // corresponding tf variables
+    t.header.stamp = now;
+    t.header.frame_id = world_frame_;
+    std::string s = robot_name + "/map";
+    t.child_frame_id = s.c_str();
+
+    t.transform = transform;
+    tf_broadcaster_->sendTransform(t);
+
+    ++it_transform;
+    ++it_robot;
+  }
 }
 
 void MapMerge::poseEstimation()
